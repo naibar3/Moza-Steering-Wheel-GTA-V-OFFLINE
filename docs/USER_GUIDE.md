@@ -1,4 +1,4 @@
-# WheelPlugin 1.2.0: user guide
+# WheelPlugin 1.3.0: user guide
 
 Complete manual for players. Thai version: [USER_GUIDE.th.md](USER_GUIDE.th.md). Developers: see [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -267,7 +267,7 @@ Created next to `GTA5.exe`:
 
 ## 14. What has been tested
 
-Honest status of version 1.2.0, tested by the author on one PC (GTA V Legacy 1.0.3889.0, Moza R3 base, Arduino H-shifter):
+Honest status of version 1.3.0, tested by the author on one PC (GTA V Legacy 1.0.3889.0, Moza R3 base, Arduino H-shifter):
 
 | area | status |
 |---|---|
@@ -290,8 +290,9 @@ Page Up / Page Down zoom. *Reset fitment of this car* clears it, and switching *
 - The wheels are moved by writing the wheel offsets in the vehicle's memory (visual only; the handling is not changed). This was found with the help of
   the open-source FiveM natives for wheel data and has been tested on a few cars of the author's game only; wheels can look wrong on cars
   with unusual wheel setups. Restart the game to undo anything odd.
-- The game keeps one ride height per car. Front and rear sliders are mixed into one height plus a small offset per axle, so a big
-  difference between front and rear looks slightly off.
+- The game has one car-wide ride height that cannot differ between the axles, so it is not used. Every wheel carries its own axle's
+  height slider (front and rear are independent; negative = lower). Changing a value wakes the car's physics so the body follows at
+  once. The direction of the height was corrected in the last build and is not yet confirmed in the game.
 - *Invert camber direction* flips the sign of the camber if it tilts the wrong way on your car.
 
 **Camera view** (menu category *General*, last three rows): *Camera on foot* and *Camera in vehicle* can force first or third person when

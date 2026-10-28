@@ -24,7 +24,7 @@ static const std::string *ThTable(const std::string &en) {
             {"General", "ทั่วไป"}, {"Force feedback", "แรงสะท้อนพวงมาลัย"}, {"FFB effects", "เอฟเฟกต์ FFB"},
             {"Steering and pedals", "พวงมาลัยและแป้น"}, {"Clutch and engine", "คลัตช์และเครื่องยนต์"},
             {"Buttons", "ปุ่มบนพวงมาลัย"}, {"H-shifter gears", "เกียร์ H-shifter"}, {"Devices", "อุปกรณ์"},
-            {"Controls and devices", "อุปกรณ์และปุ่มควบคุม"}, {"Camera", "กล้อง"}, {"Camera on foot", "กล้องตอนเดินเท้า"}, {"Camera in vehicle", "กล้องตอนอยู่ในรถ"},
+            {"Controls and devices", "อุปกรณ์และปุ่มควบคุม"}, {"Ride height method", "วิธีปรับความสูง"}, {"Car + axle fix", "ทั้งคัน + ชดเชยเพลา"}, {"Each wheel (+)", "ทีละล้อ (+)"}, {"Each wheel (-)", "ทีละล้อ (-)"}, {"Camera", "กล้อง"}, {"Camera on foot", "กล้องตอนเดินเท้า"}, {"Camera in vehicle", "กล้องตอนอยู่ในรถ"},
             {"Third-person distance", "ระยะกล้องบุคคลที่ 3"}, {"Unchanged", "ตามเกม"}, {"First person", "บุคคลที่ 1"}, {"Third person", "บุคคลที่ 3"},
             {"Close", "ใกล้"}, {"Medium", "กลาง"}, {"Far", "ไกล"},
             {"Keyboard keys", "ปุ่มคีย์บอร์ด"}, {"Fuel and engine", "น้ำมันและเครื่องยนต์"}, {"HUD and key blocks", "หน้าจอและบล็อกปุ่ม"},

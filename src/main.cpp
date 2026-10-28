@@ -23,7 +23,7 @@ using std::max;
 #include "inc/main.h"
 #include "inc/natives.h"
 
-#define WP_VERSION "1.2.0"
+#define WP_VERSION "1.3.0"
 static HMODULE g_module;
 static std::string g_dir;
 static FILE *g_log;
@@ -1833,6 +1833,7 @@ struct FitCar {
     uint64_t arr; uint64_t w[4]; float bx[4], by[4], bz[4]; int posOff; bool ok, active;     // wheel records
     float b2x[4], b2z[4], cam0[4], h0, h1; bool has2, tActive;   // first values seen: x offset (+0x30 of a record), camber (+0x08), visual height (+0x7C / +0x80 of the wheel array)
     int bone[4]; bool bonesOk, camberActive; float pose[4][16], last[4][16]; bool haveLast[4];   // wheel bones (camber)
+    float seen[FIT_N]; bool seenOk;   // the values applied last frame, to notice a change
 };
 static std::map<Vehicle, FitCar> g_fitCars;
 static std::string g_fitMsg;
@@ -1929,16 +1930,15 @@ static bool FitFind(Vehicle veh, FitCar *c) {
 static void FitApply(const FitCar &c, const FitVals &fv) {
     if (!c.has2) return;
     __try {
-        // The game has one visual height for the whole car (+0x7C), so it takes the mean of the two sliders; what an axle wants beyond the mean is
-        // made up by moving that axle's wheels the other way in their own z offset (+0x38), so front and rear can differ.
-        float mean = (fv.f[2] + fv.f[3]) * 0.5f;
+        // The game has one car-wide height (+0x7C), which cannot differ between the axles, so it is left at its first value. Every wheel
+        // carries its own axle's slider in its own z offset (+0x38) with the sign flipped (a positive offset lowers the car): front and rear are independent. Negative slider = lower.
         for (int i = 0; i < 4; i++) {
             bool front = c.by[i] > 0.0f;
-            float track = (front ? fv.f[0] : fv.f[1]) * 0.01f, resid = ((front ? fv.f[2] : fv.f[3]) - mean) * 0.01f;
+            float track = (front ? fv.f[0] : fv.f[1]) * 0.01f, resid = -(front ? fv.f[2] : fv.f[3]) * 0.01f;
             *(float *)(c.w[i] + 0x30) = c.b2x[i] + (c.bx[i] >= 0.0f ? 1.0f : -1.0f) * track;
             *(float *)(c.w[i] + 0x38) = c.b2z[i] + resid;
         }
-        *(float *)(c.arr + 0x7C) = c.h0 + mean * 0.01f;
+        *(float *)(c.arr + 0x7C) = c.h0;
     } __except (EXCEPTION_EXECUTE_HANDLER) {}
 }
 
@@ -2190,6 +2190,10 @@ static void FitBaseline(const FitCar &c) {   // the first 0x180 bytes of the fro
 static void FitReadRec(uint64_t p, float *x, float *z) {
     __try { *x = *(float *)p; *z = *(float *)(p + 8); } __except (EXCEPTION_EXECUTE_HANDLER) {}
 }
+// what the game holds right now for the ride height: the one car-wide height (+0x7C of the record array) and each wheel's z offset (+0x38)
+static void FitReadHeights(const FitCar &c, float *h, float *z4) {
+    __try { *h = *(float *)(c.arr + 0x7C); for (int i = 0; i < 4; i++) z4[i] = *(float *)(c.w[i] + 0x38); } __except (EXCEPTION_EXECUTE_HANDLER) {}
+}
 static void FitmentTick() {
     ULONGLONG now = GetTickCount64();
     if (now < g_fitMsgUntil && !g_fitMsg.empty()) DrawStr(0.5f, 0.14f, g_fitMsg, 0.5f, 150, 235, 255, true);
@@ -2224,7 +2228,7 @@ static void FitmentTick() {
         Vector3 me = ENTITY::GET_ENTITY_COORDS(PLAYER::PLAYER_PED_ID(), TRUE);
         for (int i = 0; i < n && g_fitCars.size() < 24; i++) {
             Vehicle v = vs[i];
-            if (g_fitCars.count(v)) continue;
+            if (g_fitCars.count(v) || !FitAny(FitFor(v))) continue;
             Vector3 p = ENTITY::GET_ENTITY_COORDS(v, TRUE);
             float dx = p.x - me.x, dy = p.y - me.y, dz = p.z - me.z;
             if (dx * dx + dy * dy + dz * dz < 80.0f * 80.0f) Track(v);
@@ -2254,6 +2258,19 @@ static void FitmentTick() {
         const FitVals *fv = FitFor(it->first);
         bool any = FitAny(fv);
         if (c.ok && c.has2 && (any || c.active)) { FitApply(c, any ? *fv : FitVals{}); c.active = any; }
+        if (c.ok && c.has2) {
+            bool changed = false;
+            for (int k = 0; k < FIT_N; k++) {
+                float cur = any ? fv->f[k] : 0.0f;
+                if ((c.seenOk || cur != 0.0f) && cur != c.seen[k]) changed = true;
+                c.seen[k] = cur;
+            }
+            c.seenOk = true;
+            if (changed) {   // wake the physics so the body settles on the new wheel positions right away
+                PHYSICS::ACTIVATE_PHYSICS(it->first);
+                if (ENTITY::GET_ENTITY_SPEED(it->first) < 1.0f) ENTITY::SET_ENTITY_VELOCITY(it->first, V3(0.0f, 0.0f, 0.05f));
+            }
+        }
         FitTilt(c, any ? fv->f[4] : 0.0f, any ? fv->f[5] : 0.0f);
         static bool probed = false;
         if (it->first == dv && c.bonesOk && c.ok && !probed) {
@@ -2272,6 +2289,12 @@ static void FitmentTick() {
             float *mp = nullptr;
             bool mOk = c.bonesOk && FitBoneMatrix(it->first, c.bone[0], &mp) && FitReadMat(mp, mm);
             Vector3 bp = ENTITY::GET_OFFSET_FROM_ENTITY_GIVEN_WORLD_COORDS(it->first, ENTITY::GET_WORLD_POSITION_OF_ENTITY_BONE(it->first, c.bone[0]));
+            {   // height check: values we want vs what the game holds now (it may overwrite them)
+                float hh = 0, z4[4] = {};
+                FitReadHeights(c, &hh, z4);
+                Log("fitment height: sliders front %.1f rear %.1f | car height now %.4f (start %.4f) | wheel z offsets now FL %.4f FR %.4f RL %.4f RR %.4f (start %.4f %.4f %.4f %.4f)",
+                    fv->f[2], fv->f[3], hh, c.h0, z4[0], z4[1], z4[2], z4[3], c.b2z[0], c.b2z[1], c.b2z[2], c.b2z[3]);
+            }
             Log("fitment diag: wheel0 record x=%.3f z=%.3f (base %.3f %.3f) | bone x=%.3f z=%.3f | skeleton matrix %s (m0 %.2f %.2f %.2f, pos %.2f %.2f %.2f) | ok=%d", rx, rz, c.bx[0], c.bz[0], bp.x, bp.z,
                 mOk ? "read" : "NOT readable", mm[0], mm[1], mm[2], mm[12], mm[13], mm[14], (int)c.ok);
         }

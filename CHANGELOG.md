@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.0 (2026-10-28)
+
+Fitment ride height rewritten.
+
+Changed
+- Fitment ride height: front and rear are independent. The car-wide height of the game cannot differ between the axles, so it is not
+  used any more; every wheel carries its own axle's slider (negative = lower). Changing a value wakes the car's physics so the body
+  follows at once (before, a parked car only moved after pressing the throttle)
+- Overlay health counters and the fitment height line in `WheelPlugin.log` (diagnostics)
+
+Notes
+- Not confirmed in the game at packaging time: the direction of the ride height after its last correction (negative slider = lower for
+  both axles) and the immediate update of the body. The camera settings, the scrolling controls page and the 100 m gas station icons
+  from 1.2.0 are also still unconfirmed
+- Licence unchanged (WheelPlugin Free-Use Licence, not for sale)
+
 ## 1.2.0 (2026-10-28)
 
 Fitment (stancer), camera view, merged controls page.
