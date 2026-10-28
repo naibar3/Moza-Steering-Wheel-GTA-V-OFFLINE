@@ -1,0 +1,19 @@
+# build output
+build/
+*.obj
+*.exp
+*.lib
+*.asi
+*.pdb
+*.ilk
+
+# Script Hook V SDK may not be redistributed: never commit it
+sdk/inc/
+sdk/lib/
+
+# runtime files created next to the game
+WheelPlugin.log
+WheelPlugin_capture_*.csv
+
+WheelPlugin_text/
+WheelPlugin_pumps.txt
