@@ -192,7 +192,7 @@ clears. Esc cancels a bind or a typed value.
 
 | tab | rows |
 |---|---|
-| **General** | Transmission; Steering lock (deg); Pit House rotation (deg); Direct steering (no dead zone); Recalibrate steering offset; Steering dead zone comp.; Pedal dead zone comp.; Steering non-linearity; Steering deadzone |
+| **General** | Transmission; Steering lock (deg); Pit House rotation (deg); Direct steering (no dead zone); Recalibrate steering offset; Steering dead zone comp.; Throttle sensitivity; Steering non-linearity; Steering deadzone |
 | **Force feedback** | Force feedback on/off; Test force feedback; Detect FFB direction; Also use device friction/damper; Overall gain; Internal friction; Damping; Self-aligning; Centering at low speed; Centering at high speed; FFB direction flip |
 | **FFB effects** | Engine resonance; Terrain surface; Bumps; Collisions; Gearbox grind; Understeer slip |
 | **Steering and pedals** | Steering wheel; Throttle pedal; Brake pedal; Clutch pedal; Handbrake lever (analog) |

@@ -32,7 +32,7 @@ static const std::string *ThTable(const std::string &en) {
             {"Transmission", "ระบบเกียร์"}, {"Auto", "อัตโนมัติ"}, {"Manual (clutch)", "ธรรมดา (คลัตช์)"}, {"Sequential (paddles)", "ซีเควนเชียล (พาย)"},
             {"Steering lock (deg)", "องศาล็อกพวงมาลัย (องศา)"}, {"Pit House rotation (deg)", "องศาหมุนใน Pit House"},
             {"Direct steering (no dead zone)", "เลี้ยวตรง (ไม่มีโซนตาย)"}, {"Recalibrate steering offset", "ปรับเทียบศูนย์พวงมาลัยใหม่"},
-            {"Recalibrate", "ปรับเทียบ"}, {"Steering dead zone comp.", "ชดเชยโซนตายพวงมาลัย"}, {"Pedal dead zone comp.", "ชดเชยโซนตายแป้น"},
+            {"Recalibrate", "ปรับเทียบ"}, {"Steering dead zone comp.", "ชดเชยโซนตายพวงมาลัย"}, {"Throttle sensitivity", "ความไวคันเร่ง"},
             {"Steering non-linearity", "ความไม่เชิงเส้นพวงมาลัย"}, {"Steering deadzone", "โซนตายพวงมาลัย"}, {"Log steering data (CSV)", "บันทึกข้อมูลการเลี้ยว (CSV)"},
             {"Fitment", "จัดฟิตเม้นรถ"}, {"Adjust with the car in view (small panel)", "ปรับโดยเห็นรถ (แผงเล็ก)"}, {"Open", "เปิด"}, {"Save and back", "บันทึกและกลับ"}, {"Fitment saved per car (plate)", "ฟิตเม้นแยกตามรถ (ป้ายทะเบียน)"}, {"Front track width (cm)", "ความกว้างล้อหน้า (ซม.)"}, {"Rear track width (cm)", "ความกว้างล้อหลัง (ซม.)"},
             {"Front ride height (cm)", "ความสูงหน้า (ซม.)"}, {"Rear ride height (cm)", "ความสูงหลัง (ซม.)"},

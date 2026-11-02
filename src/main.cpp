@@ -961,7 +961,7 @@ static void BuildRows() {
     Add(B("Direct steering (no dead zone)", &cfg.directSteer));
     { Row r{"Recalibrate steering offset", R_ACTION}; r.act = StartSteerCalibration; r.btn_text = "Recalibrate"; Add(r); }
     Add(Pc("Steering dead zone comp.", &cfg.deadComp, 0.8f));
-    Add(Pc("Pedal dead zone comp.", &cfg.pedalComp, 0.8f));
+    Add(Pc("Throttle sensitivity", &cfg.pedalComp, 0.8f));   // lifts small pedal values above the game's own input dead zone (throttle and brake)
     Add(Pc("Steering non-linearity", &cfg.nonlin, 1.0f));
     Add(B("Log steering data (CSV)", &cfg.steerLog));
     Add(Fl("Steering deadzone", &cfg.deadzone, 0.0f, 0.2f, 0.01f));
