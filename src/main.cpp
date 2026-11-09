@@ -23,7 +23,7 @@ using std::max;
 #include "inc/main.h"
 #include "inc/natives.h"
 
-#define WP_VERSION "1.3.1"
+#define WP_VERSION "1.3.2"
 static HMODULE g_module;
 static std::string g_dir;
 static FILE *g_log;
@@ -2255,7 +2255,7 @@ static void FitmentTick() {
         c.bonesOk = true;
         for (int i = 0; i < 4; i++) { c.bone[i] = ENTITY::GET_ENTITY_BONE_INDEX_BY_NAME(v, FIT_BONES[i]); if (c.bone[i] < 0) c.bonesOk = false; }
         FitCar r = {};
-        if (FitFind(v, &r)) { memcpy(c.w, r.w, sizeof c.w); memcpy(c.bx, r.bx, sizeof c.bx); memcpy(c.by, r.by, sizeof c.by); memcpy(c.bz, r.bz, sizeof c.bz); memcpy(c.b2x, r.b2x, sizeof c.b2x); memcpy(c.cam0, r.cam0, sizeof c.cam0); memcpy(c.b2z, r.b2z, sizeof c.b2z); c.h0 = r.h0; c.h1 = r.h1; c.has2 = r.has2; c.arr = r.arr; c.posOff = r.posOff; c.ok = true; }
+        if (FitFind(v, &r)) { memcpy(c.w, r.w, sizeof c.w); memcpy(c.bx, r.bx, sizeof c.bx); memcpy(c.by, r.by, sizeof c.by); memcpy(c.bz, r.bz, sizeof c.bz); memcpy(c.b2x, r.b2x, sizeof c.b2x); memcpy(c.cam0, r.cam0, sizeof c.cam0); memcpy(c.b2z, r.b2z, sizeof c.b2z); c.h0 = r.h0; c.h1 = r.h1; c.has2 = r.has2; c.arr = r.arr; c.posOff = r.posOff; c.slot = r.slot; c.ok = true; }
         else if (v == dv) FitNote("Wheels not found in this vehicle");
         if (c.ok) FitBaseline(c);
         Log("fitment: vehicle %d (%s): wheel records %s, wheel bones %s", v, FitPlateKey(v).c_str(), c.ok ? "found" : "NOT found", c.bonesOk ? "found" : "NOT found");

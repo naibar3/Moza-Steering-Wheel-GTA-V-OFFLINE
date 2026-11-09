@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.2 (2026-11-09)
+
+Fixes the fitment of 1.3.1.
+
+Fixed
+- Fitment did nothing in 1.3.1: the new wheel data check compared against a position that was never copied into the tracked car, so it
+  judged every car as changed and dropped it on every frame (the log showed `changed its wheel data, dropped` again and again). The
+  position is copied now. Use 1.3.2 instead of 1.3.1
+
+Notes
+- 1.3.1 changes stay: frame rate fix with a Moza base, wheel data check, `WheelPlugin.prev.log`, `perf` log lines, "Throttle sensitivity"
+- Not confirmed in the game at packaging time: whether the crash near the car park is gone, the direction of the fitment ride height,
+  the camera view settings, the scrolling controls page and the 100 m gas station icons. Confirmed: fitment moves the wheels again
+
 ## 1.3.1 (2026-11-09)
 
 Frame rate fix, safer fitment, better diagnostics.
