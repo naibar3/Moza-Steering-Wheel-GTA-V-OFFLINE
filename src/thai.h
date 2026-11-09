@@ -476,7 +476,19 @@ static bool ThD3DInit(IDXGISwapChain *sc) {
     return ok;
 }
 
+static std::atomic<long long> g_presUs{0}, g_presMaxUs{0};   // time spent in OnPresent (render thread), logged with the script timings
+struct PresentTimer {
+    LARGE_INTEGER t0;
+    PresentTimer() { QueryPerformanceCounter(&t0); }
+    ~PresentTimer() {
+        LARGE_INTEGER t1, f; QueryPerformanceCounter(&t1); QueryPerformanceFrequency(&f);
+        long long us = (t1.QuadPart - t0.QuadPart) * 1000000LL / f.QuadPart;
+        g_presUs += us;
+        long long m = g_presMaxUs; while (us > m && !g_presMaxUs.compare_exchange_weak(m, us)) {}
+    }
+};
 static void OnPresent(void *p) {
+    PresentTimer presentTimer;
     IDXGISwapChain *sc = (IDXGISwapChain *)p;
     if (!sc || g_d3dState < 0) return;
     DXGI_SWAP_CHAIN_DESC sd;

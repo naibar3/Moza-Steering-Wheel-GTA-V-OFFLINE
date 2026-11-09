@@ -1,4 +1,4 @@
-# WheelPlugin 1.3.0: คู่มือผู้ใช้ฉบับสมบูรณ์
+# WheelPlugin 1.3.1: คู่มือผู้ใช้ฉบับสมบูรณ์
 
 คู่มือสำหรับผู้เล่น ฉบับภาษาอังกฤษ: [USER_GUIDE.md](USER_GUIDE.md) นักพัฒนาดู [ARCHITECTURE.md](ARCHITECTURE.md)
 

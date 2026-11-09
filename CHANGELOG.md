@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.3.1 (2026-11-09)
+
+Frame rate fix, safer fitment, better diagnostics.
+
+Fixed
+- Frame rate dropped by 20-30 fps when getting into a vehicle with a Moza base switched on. The force feedback code called the wheel
+  driver for every effect on every frame (about 5.4 ms per frame). Now only the effects whose value really changed are written
+  (1 % steps for resistance and vibration strength, whole Hz for frequencies, 0.3 % for the constant force) and the effect status is
+  checked twice a second. Measured: 5.4 ms to 0.03 ms per frame
+
+Changed
+- The setting "Pedal dead zone comp." is now called "Throttle sensitivity" (Thai: ความไวคันเร่ง). It lifts small pedal values above the
+  game's own input dead zone (throttle and brake); the ini key `PedalDeadZoneComp` is unchanged
+
+Added
+- Fitment checks the chain vehicle, wheel array, wheel records before every write and drops a car whose wheel data changed (a garage mod
+  can rebuild or remove cars at any time). Added after a game crash near a car park; the cause of that crash is not confirmed
+- The log of the previous run is kept as `WheelPlugin.prev.log`
+- `perf` lines in `WheelPlugin.log` (every 5 s): average and worst ms per frame of the menu, gas stations, fitment, main loop, HUD,
+  device polling, wheel / force feedback and the overlay
+
+Notes
+- Not confirmed in the game at packaging time: the wheel data check (not run in the game yet) and whether the crash near the car park is gone
+
 ## 1.3.0 (2026-10-28)
 
 Fitment ride height rewritten.

@@ -23,7 +23,7 @@ using std::max;
 #include "inc/main.h"
 #include "inc/natives.h"
 
-#define WP_VERSION "1.3.0"
+#define WP_VERSION "1.3.1"
 static HMODULE g_module;
 static std::string g_dir;
 static FILE *g_log;
@@ -272,6 +272,7 @@ struct Dev {
     bool ok = false;
     IDirectInputEffect *constant = nullptr, *friction = nullptr, *damper = nullptr;
     IDirectInputEffect *engine = nullptr, *road = nullptr, *slip = nullptr; // periodic (sine) vibrations
+    LONG sent[9] = {}; bool sentValid = false;   // the values last written to the effects: a driver call per effect per frame is slow (several ms), so unchanged ones are skipped
 };
 static Dev g_wheel, g_pedals, g_hand, g_shifter;   // steering base, pedals, handbrake lever, external H-shifter
 
@@ -492,25 +493,35 @@ static void SetCondition(IDirectInputEffect *fx, const char *name, float amount)
 // constant: signed force (+ = towards +axis); friction / damper: 0..1 resistance; periodic: vibrations
 static void SetFfb(Dev &d, const FfbOut &o) {
     if (!d.ok) return;
-    float c = std::clamp(o.constant, -1.0f, 1.0f);
-    if (d.constant) {
-        DICONSTANTFORCE cf = {(LONG)(c * 10000)};
+    // Every SetParameters is a call into the wheel driver (about a millisecond each on a Moza base), so only the effects whose value really
+    // changed are written. Steps: 1 % for resistance and vibration strength, whole Hz for frequencies, 0.3 % for the constant force.
+    auto Q = [](float x) { return (LONG)(std::clamp(x, 0.0f, 1.0f) * 100.0f + 0.5f) * 100; };
+    auto P = [](float hz) { return (LONG)(1000000.0f / std::clamp(floorf(hz + 0.5f), 5.0f, 120.0f)); };
+    LONG w[9] = {(LONG)(std::clamp(o.constant, -1.0f, 1.0f) * 10000), Q(o.friction), Q(o.damper),
+                 Q(o.engMag), P(o.engHz), Q(o.roadMag), P(o.roadHz), Q(o.slipMag), P(o.slipHz)};
+    const bool all = !d.sentValid;
+    if (d.constant && (all || labs(w[0] - d.sent[0]) >= 30 || (w[0] == 0 && d.sent[0] != 0))) {
+        DICONSTANTFORCE cf = {w[0]};
         DIEFFECT e = {}; e.dwSize = sizeof e;
         e.cbTypeSpecificParams = sizeof cf; e.lpvTypeSpecificParams = &cf;
         Chk("constant SetParameters", d.constant->SetParameters(&e, DIEP_TYPESPECIFICPARAMS));
+        d.sent[0] = w[0];
     }
-    SetCondition(d.friction, "friction SetParameters", o.friction);
-    SetCondition(d.damper, "damper SetParameters", o.damper);
-    SetPeriodic(d.engine, "engine SetParameters", o.engHz, o.engMag);
-    SetPeriodic(d.road, "road SetParameters", o.roadHz, o.roadMag);
-    SetPeriodic(d.slip, "slip SetParameters", o.slipHz, o.slipMag);
+    if (all || w[1] != d.sent[1]) { SetCondition(d.friction, "friction SetParameters", w[1] / 10000.0f); d.sent[1] = w[1]; }
+    if (all || w[2] != d.sent[2]) { SetCondition(d.damper, "damper SetParameters", w[2] / 10000.0f); d.sent[2] = w[2]; }
+    if (all || w[3] != d.sent[3] || w[4] != d.sent[4]) { SetPeriodic(d.engine, "engine SetParameters", 1000000.0f / w[4], w[3] / 10000.0f); d.sent[3] = w[3]; d.sent[4] = w[4]; }
+    if (all || w[5] != d.sent[5] || w[6] != d.sent[6]) { SetPeriodic(d.road, "road SetParameters", 1000000.0f / w[6], w[5] / 10000.0f); d.sent[5] = w[5]; d.sent[6] = w[6]; }
+    if (all || w[7] != d.sent[7] || w[8] != d.sent[8]) { SetPeriodic(d.slip, "slip SetParameters", 1000000.0f / w[8], w[7] / 10000.0f); d.sent[7] = w[7]; d.sent[8] = w[8]; }
+    d.sentValid = true;
 }
 static void StartFfb(Dev &d) {
+    d.sentValid = false;
     SetFfb(d, FfbOut{});
     for (IDirectInputEffect *fx : {d.constant, d.friction, d.damper, d.engine, d.road, d.slip})
         if (fx) Chk("Start", fx->Start(1, 0));
 }
 static void ReleaseEffects(Dev &d) {
+    d.sentValid = false;
     for (IDirectInputEffect **fx : {&d.constant, &d.friction, &d.damper, &d.engine, &d.road, &d.slip})
         if (*fx) { (*fx)->Stop(); (*fx)->Release(); *fx = nullptr; }
 }
@@ -532,6 +543,7 @@ static void ReacquireWheel(Dev &d, HWND hwnd) {
     if (logged++ < 8) Log("ffb: re-acquiring wheel exclusively: coop=0x%lX acquire=0x%lX", (unsigned long)h1, (unsigned long)h2);
     if (SUCCEEDED(h1) && SUCCEEDED(h2)) {
         g_ffbLost = false;
+        d.sentValid = false;
         for (IDirectInputEffect *fx : {d.constant, d.friction, d.damper, d.engine, d.road, d.slip})
             if (fx) fx->Start(1, 0);
     }
@@ -541,10 +553,15 @@ static void ReacquireWheel(Dev &d, HWND hwnd) {
 static void EnsurePlaying(Dev &d) {
     if (!d.ok) return;
     static int restarts = 0;
+    static ULONGLONG nextCheck = 0;   // six status queries are six driver calls: twice a second is enough
+    ULONGLONG nowMs = GetTickCount64();
+    if (nowMs < nextCheck) return;
+    nextCheck = nowMs + 500;
     for (IDirectInputEffect *fx : {d.constant, d.friction, d.damper, d.engine, d.road, d.slip}) {
         if (!fx) continue;
         DWORD st = 0;
         if (SUCCEEDED(fx->GetEffectStatus(&st)) && !(st & DIEGES_PLAYING)) {
+            d.sentValid = false;
             Chk("restart Start", fx->Start(1, 0));
             if (restarts++ < 6) Log("ffb effect was not playing, restarted (count %d)", restarts);
         }
@@ -1698,6 +1715,18 @@ static std::vector<Blip> g_blips;          // g_blips[i] = map icon of g_station
 static size_t g_blipPumps = (size_t)-1;
 static bool g_pumpsLoaded;
 static float Dist2(const Vector3 &a, const Vector3 &b) { float dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z; return dx * dx + dy * dy + dz * dz; }
+// script timings per section (ms): sum and worst frame, logged every 5 s with the overlay numbers
+struct ProfSlot { double sum = 0, mx = 0; };
+static ProfSlot g_prof[8];   // 0 menu, 1 stations, 2 fitment, 3 SimTick total, 4 HUD, 5 device polling, 6 wheel / force feedback part of the loop
+struct ProfScope {
+    int i; LARGE_INTEGER t0;
+    explicit ProfScope(int k) : i(k) { QueryPerformanceCounter(&t0); }
+    ~ProfScope() {
+        LARGE_INTEGER t1, f; QueryPerformanceCounter(&t1); QueryPerformanceFrequency(&f);
+        double ms = (double)(t1.QuadPart - t0.QuadPart) * 1000.0 / (double)f.QuadPart;
+        g_prof[i].sum += ms; if (ms > g_prof[i].mx) g_prof[i].mx = ms;
+    }
+};
 static void RemoveStationBlips() {
     for (Blip bl : g_blips) if (bl && HUD::DOES_BLIP_EXIST(bl)) HUD::REMOVE_BLIP(&bl);
     g_blips.clear();
@@ -1831,6 +1860,7 @@ static void SteerLog(Vehicle veh, float handFrac, float steerValue, BYTE *sp) {
 // the bones, not the wheel records. Settings are kept per car (model + plate) or per model.
 struct FitCar {
     uint64_t arr; uint64_t w[4]; float bx[4], by[4], bz[4]; int posOff; bool ok, active;     // wheel records
+    int slot;   // where in the vehicle the pointer to the wheel array sits: checked again before every write, the vehicle may have been rebuilt or removed
     float b2x[4], b2z[4], cam0[4], h0, h1; bool has2, tActive;   // first values seen: x offset (+0x30 of a record), camber (+0x08), visual height (+0x7C / +0x80 of the wheel array)
     int bone[4]; bool bonesOk, camberActive; float pose[4][16], last[4][16]; bool haveLast[4];   // wheel bones (camber)
     float seen[FIT_N]; bool seenOk;   // the values applied last frame, to notice a change
@@ -1875,7 +1905,7 @@ static bool FitTryArray(uint64_t base, int off, const float ex[4][3], FitCar *c,
                 t.w[i] = w; t.bx[i] = x; t.by[i] = y; t.bz[i] = z;
             }
             if (matched > *bestMatched) *bestMatched = matched;
-            if (matched == 4 && used == 15) { t.arr = q; t.posOff = po; t.ok = true; *c = t; (*firstHit)++; return true; }
+            if (matched == 4 && used == 15) { t.arr = q; t.posOff = po; t.slot = off; t.ok = true; *c = t; (*firstHit)++; return true; }
         }
         if (hit) (*firstHit)++;
     } __except (EXCEPTION_EXECUTE_HANDLER) {}
@@ -2190,6 +2220,17 @@ static void FitBaseline(const FitCar &c) {   // the first 0x180 bytes of the fro
 static void FitReadRec(uint64_t p, float *x, float *z) {
     __try { *x = *(float *)p; *z = *(float *)(p + 8); } __except (EXCEPTION_EXECUTE_HANDLER) {}
 }
+// The wheel records are raw pointers found once. A garage mod may delete or rebuild the car (and the game reuse that memory) at any time, so before
+// anything is written the chain vehicle -> wheel array -> wheel records is read again and must still be the one that was found.
+static bool FitStillValid(Vehicle v, const FitCar &c) {
+    __try {
+        BYTE *p = getScriptHandleBaseAddress(v);
+        if (!p) return false;
+        if (*(uint64_t *)(p + c.slot) != c.arr) return false;
+        for (int i = 0; i < 4; i++) if (*(uint64_t *)(c.arr + 8 * (uint64_t)i) != c.w[i]) return false;
+        return true;
+    } __except (EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
 // what the game holds right now for the ride height: the one car-wide height (+0x7C of the record array) and each wheel's z offset (+0x38)
 static void FitReadHeights(const FitCar &c, float *h, float *z4) {
     __try { *h = *(float *)(c.arr + 0x7C); for (int i = 0; i < 4; i++) z4[i] = *(float *)(c.w[i] + 0x38); } __except (EXCEPTION_EXECUTE_HANDLER) {}
@@ -2200,7 +2241,8 @@ static void FitmentTick() {
     if (!cfg.fitOn) {                                  // switched off: wheels back to the first values seen, then nothing runs
         for (auto &kv : g_fitCars) {
             if (!ENTITY::DOES_ENTITY_EXIST(kv.first)) continue;
-            if (kv.second.ok && kv.second.active) FitApply(kv.second, FitVals{});
+            if (!kv.second.ok || !FitStillValid(kv.first, kv.second)) continue;
+            if (kv.second.active) FitApply(kv.second, FitVals{});
             FitTilt(kv.second, 0.0f, 0.0f);
         }
         g_fitCars.clear();
@@ -2255,6 +2297,11 @@ static void FitmentTick() {
     for (auto it = g_fitCars.begin(); it != g_fitCars.end();) {
         if (!ENTITY::DOES_ENTITY_EXIST(it->first)) { it = g_fitCars.erase(it); continue; }
         FitCar &c = it->second;
+        if (c.ok && !FitStillValid(it->first, c)) {   // the car was rebuilt or its memory moved: forget it (it is found again from scratch if it still needs fitment)
+            static int dropped = 0;
+            if (dropped++ < 10) Log("fitment: vehicle %d changed its wheel data, dropped", it->first);
+            it = g_fitCars.erase(it); continue;
+        }
         const FitVals *fv = FitFor(it->first);
         bool any = FitAny(fv);
         if (c.ok && c.has2 && (any || c.active)) { FitApply(c, any ? *fv : FitVals{}); c.active = any; }
@@ -2330,8 +2377,8 @@ static void SimTick(float dt) {
     if (cfg.blockF3) Block(170);
     if (cfg.blockF5to8) { Block(166); Block(167); Block(168); Block(169); }
     if (cfg.blockF1 || cfg.blockF2) RECORDING::REPLAY_PREVENT_RECORDING_THIS_FRAME();
-    StationTick(PED::IS_PED_IN_ANY_VEHICLE(PLAYER::PLAYER_PED_ID(), FALSE) != 0, g_dashFuel);
-    FitmentTick();
+    { ProfScope ps(1); StationTick(PED::IS_PED_IN_ANY_VEHICLE(PLAYER::PLAYER_PED_ID(), FALSE) != 0, g_dashFuel); }
+    { ProfScope ps(2); FitmentTick(); }
 
     Ped ped = PLAYER::PLAYER_PED_ID();
     Vehicle veh = PED::IS_PED_IN_ANY_VEHICLE(ped, FALSE) ? PED::GET_VEHICLE_PED_IS_IN(ped, FALSE) : 0;
@@ -2567,7 +2614,7 @@ static void ScriptMain() {
                 lt = nw; ticks = 0; g_dbgPresents = 0; g_dbgEmpty = 0; g_dbgMiss = 0;
             } else if (!g_menuOpen) lt = 0;
         }
-        Poll(g_wheel); Poll(g_pedals); Poll(g_hand); Poll(g_shifter);
+        { ProfScope ps(5); Poll(g_wheel); Poll(g_pedals); Poll(g_hand); Poll(g_shifter); }
         bool k = KeyDown(cfg.keyDump);
         if (k && !f9) DumpState();
         f9 = k;
@@ -2588,12 +2635,29 @@ static void ScriptMain() {
             if (g_trans != savedTrans) { savedTrans = g_trans; W("Shifter", "Mode", TRANS_NAMES[g_trans]); }
         }
         const float frameDt = FrameDt();
-        MenuTick();
-        SimTick(frameDt);
-        DrawHud();
+        { ProfScope ps(0); MenuTick(); }
+        { ProfScope ps(3); SimTick(frameDt); }
+        { ProfScope ps(4); DrawHud(); }
+        {   // timings: average and worst ms per frame of each section, every 5 s (on foot and in a vehicle, so they can be compared)
+            static ULONGLONG lastP = 0; static int frames = 0;
+            frames++;
+            ULONGLONG nw = GetTickCount64();
+            if (!lastP) lastP = nw;
+            if (nw - lastP >= 5000 && frames > 0) {
+                bool inV = PED::IS_PED_IN_ANY_VEHICLE(PLAYER::PLAYER_PED_ID(), FALSE) != 0;
+                Log("perf %s: %d frames | ms avg/max: menu %.2f/%.1f stations %.2f/%.1f fitment %.2f/%.1f simtick %.2f/%.1f hud %.2f/%.1f poll %.2f/%.1f wheel+ffb %.2f/%.1f | present %.2f/%.1f | draw cmds %zu, textures %zu",
+                    inV ? "IN VEHICLE" : "on foot", frames,
+                    g_prof[0].sum / frames, g_prof[0].mx, g_prof[1].sum / frames, g_prof[1].mx, g_prof[2].sum / frames, g_prof[2].mx,
+                    g_prof[3].sum / frames, g_prof[3].mx, g_prof[4].sum / frames, g_prof[4].mx, g_prof[5].sum / frames, g_prof[5].mx, g_prof[6].sum / frames, g_prof[6].mx,
+                    g_presUs.load() / 1000.0 / frames, g_presMaxUs.load() / 1000.0, g_thReady.size(), g_thTex.size());
+                for (auto &s : g_prof) s = ProfSlot{};
+                g_presUs = 0; g_presMaxUs = 0; frames = 0; lastP = nw;
+            }
+        }
         if (g_reopen) { g_reopen = false; ReopenAll(g_hwnd); wasIn = false; Log("devices reopened from the menu"); }
         if (g_recreateFfb) { g_recreateFfb = false; ReleaseEffects(g_wheel); CreateEffects(g_wheel); wasIn = false; }
         if (!g_wheel.ok) continue;
+        ProfScope wheelPart(6);   // everything below: steering, pedals, gearbox, force feedback (ends with the loop iteration)
 
         if (g_ffbLost) {
             static ULONGLONG lastTry = 0;
@@ -3107,6 +3171,8 @@ BOOL APIENTRY DllMain(HMODULE hMod, DWORD reason, LPVOID) {
         g_module = hMod;
         char path[MAX_PATH]; GetModuleFileNameA(hMod, path, MAX_PATH);
         g_dir = path; g_dir = g_dir.substr(0, g_dir.find_last_of("\\/") + 1);
+        // the log of the previous run is kept (WheelPlugin.prev.log): after a crash it is the only record of what happened
+        MoveFileExA((g_dir + "WheelPlugin.log").c_str(), (g_dir + "WheelPlugin.prev.log").c_str(), MOVEFILE_REPLACE_EXISTING);
         g_log = fopen((g_dir + "WheelPlugin.log").c_str(), "w");
         {
             char exe[MAX_PATH] = {}; GetModuleFileNameA(nullptr, exe, MAX_PATH);

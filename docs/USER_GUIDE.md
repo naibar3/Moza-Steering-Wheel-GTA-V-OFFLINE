@@ -1,4 +1,4 @@
-# WheelPlugin 1.3.0: user guide
+# WheelPlugin 1.3.1: user guide
 
 Complete manual for players. Thai version: [USER_GUIDE.th.md](USER_GUIDE.th.md). Developers: see [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -267,7 +267,7 @@ Created next to `GTA5.exe`:
 
 ## 14. What has been tested
 
-Honest status of version 1.3.0, tested by the author on one PC (GTA V Legacy 1.0.3889.0, Moza R3 base, Arduino H-shifter):
+Honest status of version 1.3.1, tested by the author on one PC (GTA V Legacy 1.0.3889.0, Moza R3 base, Arduino H-shifter):
 
 | area | status |
 |---|---|
